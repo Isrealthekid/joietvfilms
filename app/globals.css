@@ -21,3 +21,14 @@
 .text-nav{flex-shrink:0}.film-details{max-height:72%;overflow-y:auto;overscroll-behavior:contain;padding:4px 8px 12px 0}.poster{height:min(310px,43dvh)}.artwork{top:18%}
 @media(max-width:600px){.artwork{top:20%}.poster{height:min(264px,32dvh)}.is-focused .poster{height:min(264px,29dvh)}.film-details{max-height:none}}
 @media(max-height:500px) and (min-width:601px){.text-nav{padding-top:18px;padding-bottom:18px}.artwork,.film-details{top:8%}.film-details{max-height:88%}.poster{height:52dvh}}
+.gallery-stage{touch-action:pan-y;cursor:grab;user-select:none}
+.frame-button{position:relative;touch-action:pan-y;cursor:grab}
+.gallery-stage.is-dragging,.gallery-stage.is-dragging .frame-button{cursor:grabbing}
+.gallery-stage.is-dragging .artwork{transition:none}
+.is-focused .gallery-stage,.is-focused .frame-button{cursor:default;user-select:auto}
+.new-ribbon{position:absolute;top:-6px;left:-6px;width:88px;height:88px;overflow:hidden;z-index:4;pointer-events:none;filter:drop-shadow(1px 3px 2px #0005)}
+.new-ribbon:before,.new-ribbon:after{content:'';position:absolute;background:#790c1c;z-index:-1}
+.new-ribbon:before{top:0;right:0;width:7px;height:6px;border-radius:0 6px 0 0}
+.new-ribbon:after{bottom:0;left:0;width:6px;height:7px;border-radius:0 0 0 6px}
+.new-ribbon>span{position:absolute;left:-29px;top:22px;width:124px;transform:rotate(-45deg);padding:6px 0;background:linear-gradient(#f5233d,#d70726);color:white;text-align:center;font-size:12px;font-weight:700;letter-spacing:1px;box-shadow:0 1px 0 #ff7a88 inset,0 -1px 0 #9b0015 inset}
+.new-ribbon i{font-style:normal;font-size:10px;margin-right:4px}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
 import { ArrowLeft, Pause, Play } from 'lucide-react';
 
 type Movie = { id: number; title: string; subtitle: string; genre: string; year: string; length: string; director: string; cast: string; description: string; image: string; color: string };
@@ -24,6 +24,8 @@ export default function Home() {
   const phase = useRef(0);
   const stopped = useRef(false);
   const returning = useRef(0);
+  const drag = useRef<{ id: number; startX: number; startPhase: number; moved: boolean } | null>(null);
+  const suppressClickUntil = useRef(0);
   const movie = movies.find(m => m.id === selected);
   stopped.current = selected !== null || paused;
 
@@ -37,7 +39,7 @@ export default function Home() {
       const cycle = gap * movies.length;
       const elapsed = previous ? Math.min(time - previous, 50) : 0;
       previous = time;
-      if (!stopped.current && !reduced.matches && time > returning.current && !stage.current?.matches(':hover, :focus-within')) phase.current += elapsed * .025;
+      if (!stopped.current && !drag.current && !reduced.matches && time > returning.current && !stage.current?.matches(':hover, :focus-within')) phase.current += elapsed * .025;
       frames.current.forEach((frame, index) => {
         const x = ((index * gap - phase.current + gap) % cycle + cycle) % cycle - gap;
         frame?.style.setProperty('--x', `${x}px`);
@@ -64,12 +66,37 @@ export default function Home() {
   useEffect(() => { if (!isReturning) return; const timer = setTimeout(() => setIsReturning(false), 3000); return () => clearTimeout(timer); }, [isReturning]);
 
   function reveal(index: number) {
-    if (selected !== null) return;
+    if (selected !== null || drag.current) return;
     const rect = frames.current[index]?.getBoundingClientRect();
     if (rect && (rect.left < 0 || rect.right > innerWidth)) {
       const gap = Math.max(innerWidth < 600 ? 245 : 300, innerWidth / 5);
       phase.current = index * gap - innerWidth / 2;
     }
+  }
+
+  function startDrag(event: PointerEvent<HTMLElement>) {
+    if (selected !== null || isReturning || !event.isPrimary || event.button !== 0) return;
+    suppressClickUntil.current = 0;
+    drag.current = { id: event.pointerId, startX: event.clientX, startPhase: phase.current, moved: false };
+  }
+
+  function moveDrag(event: PointerEvent<HTMLElement>) {
+    const gesture = drag.current;
+    if (!gesture || gesture.id !== event.pointerId) return;
+    const distance = event.clientX - gesture.startX;
+    if (!gesture.moved && Math.abs(distance) < 6) return;
+    gesture.moved = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.classList.add('is-dragging');
+    phase.current = gesture.startPhase - distance;
+  }
+
+  function endDrag(event: PointerEvent<HTMLElement>) {
+    if (drag.current?.id !== event.pointerId) return;
+    if (drag.current.moved) suppressClickUntil.current = performance.now() + 500;
+    drag.current = null;
+    event.currentTarget.classList.remove('is-dragging');
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }
 
   return <main className={`exhibition ${movie ? 'is-focused' : ''} ${isReturning ? 'is-returning' : ''}`}>
@@ -78,9 +105,17 @@ export default function Home() {
       <div><button onClick={close}>Films</button><span aria-hidden="true">—</span><span>Works</span></div>
       <div><span>Collaborate</span><span aria-hidden="true">—</span><span>Contact</span></div>
     </nav>
-    <section ref={stage} className="gallery-stage" aria-label="Film gallery">
+    <section ref={stage} className="gallery-stage" aria-label="Film gallery" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={event => { if (event.target === event.currentTarget) endDrag(event); }} onPointerLeave={event => { if (!drag.current?.moved) endDrag(event); }} onClickCapture={event => {
+      if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); }
+    }} onKeyDown={event => {
+      if (selected !== null || isReturning || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault();
+      const width = stage.current?.clientWidth || innerWidth;
+      phase.current += Math.max(width < 600 ? 245 : 300, width / 5) * (event.key === 'ArrowRight' ? 1 : -1);
+    }}>
       {movies.map((m, index) => <div ref={el => { frames.current[index] = el; }} key={m.id} className={`artwork ${selected === m.id ? 'selected' : ''} ${movie && selected !== m.id ? 'unselected' : ''}`} style={{'--x': `${index * 300}px`, '--poster-color': m.color} as React.CSSProperties}>
-        <button className="frame-button" aria-label={`Explore ${m.title}`} aria-expanded={selected === m.id} tabIndex={movie ? -1 : 0} onFocus={() => reveal(index)} onClick={() => setSelected(m.id)}>
+        <button className="frame-button" aria-label={`Explore ${m.title}`} aria-describedby={[1, 3].includes(m.id) ? `new-film-${m.id}` : undefined} aria-expanded={selected === m.id} tabIndex={movie ? -1 : 0} onFocus={() => reveal(index)} onClick={() => setSelected(m.id)}>
+          {[1, 3].includes(m.id) && <span className="new-ribbon" id={`new-film-${m.id}`}><span><i aria-hidden="true">★</i> NEW</span></span>}
           <div className="frame"><div className="frame-inner"><div className="poster"><img src={m.image} alt="" draggable={false}/><div className="poster-shade"/><span className="poster-credit">A FILM BY {m.director.toUpperCase()}</span><div className="poster-title">{m.title.split(' ').map((word, i) => <span key={i}>{word} </span>)}</div><span className="poster-subtitle">{m.subtitle}</span><span className="poster-bottom">JTVF ORIGINAL PICTURES<br/><small>A STORY WORTH TELLING</small></span></div></div></div>
         </button>
       </div>)}
@@ -91,3 +126,4 @@ export default function Home() {
     {!movie && <button className="motion-control" aria-label={paused ? 'Play gallery' : 'Pause gallery'} onClick={() => setPaused(!paused)}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button>}
   </main>;
 }
+
