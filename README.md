@@ -11,6 +11,12 @@ npm run dev
 
 Open http://localhost:3000. `npm run build` generates the static production site in `out/`.
 
+## Deploy on Vercel
+
+Import this repository with the repository root as the Root Directory and `main` as the production branch. The tracked `vercel.json` runs `npm ci`, builds the Next.js static export, and publishes `out/`, which contains `index.html`, JavaScript, CSS, and posters. The framework preset is explicitly `Other` because this deployment serves the exported site without a Next.js server.
+
+Do not publish `public/` or the repository root: neither contains the generated homepage. If a deployment still returns Vercel's `NOT_FOUND`, confirm the project is using the latest `main` commit and that the domain is assigned to that production deployment.
+
 ## Included in this first phase
 
 - Gold rectangular frames with locally stored photographic poster artwork.
