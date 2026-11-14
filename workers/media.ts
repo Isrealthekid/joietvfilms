@@ -1,4 +1,4 @@
-import type { R2Bucket } from '@cloudflare/workers-types';
+import type { R2Bucket, ExecutionContext } from '@cloudflare/workers-types';
 
 export interface Env {
   POSTERS: R2Bucket;
@@ -17,7 +17,7 @@ function isImage(bytes: Uint8Array, type: string) {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: Pick<ExecutionContext, 'cache'>): Promise<Response> {
     const url = new URL(request.url);
     const origin = request.headers.get('Origin');
     const allowed = env.ALLOWED_ORIGINS.split(',').map(v => v.trim()).filter(Boolean);
@@ -27,7 +27,7 @@ export default {
 
     if (request.method === 'OPTIONS') {
       if (!origin || !allowed.includes(origin)) return reply({error:'Origin is not allowed.'},403);
-      return new Response(null, {status:204, headers:{...headers,'Access-Control-Allow-Methods':'GET, HEAD, POST, DELETE, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
+      return new Response(null, {status:204, headers:{...headers,'Cache-Control':'no-store','Access-Control-Allow-Methods':'GET, HEAD, POST, DELETE, OPTIONS','Access-Control-Allow-Headers':'Authorization, Content-Type','Access-Control-Max-Age':'600'}});
     }
     try {
       if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname.startsWith('/media/')) {
@@ -35,7 +35,17 @@ export default {
         if (!keyPattern.test(key)) return reply({error:'Not found.'},404);
         const object = await env.POSTERS.get(key);
         if (!object) return reply({error:'Not found.'},404);
-        return new Response(request.method === 'HEAD' ? null : object.body as unknown as ReadableStream, {headers:{...headers,'Content-Type':object.httpMetadata?.contentType || 'application/octet-stream','Cache-Control':'public, max-age=31536000, immutable','ETag':object.httpEtag}});
+        // Posters are public assets: share a cache entry across frontend origins.
+        // Admin operations below keep their strict origin allowlist and no-store.
+        const authenticated = request.headers.has('Authorization');
+        return new Response(request.method === 'HEAD' ? null : object.body as unknown as ReadableStream, {headers:{
+          'Access-Control-Allow-Origin':'*',
+          'X-Content-Type-Options':'nosniff',
+          'Content-Type':object.httpMetadata?.contentType || 'application/octet-stream',
+          'Cache-Control':authenticated ? 'no-store' : 'public, max-age=3600, s-maxage=86400',
+          'Cache-Tag':`poster:${key}`,
+          'ETag':object.httpEtag,
+        }});
       }
       if (url.pathname !== '/uploads' || !['POST','DELETE'].includes(request.method)) return reply({error:'Not found.'},404);
       if (origin && !allowed.includes(origin)) return reply({error:'Origin is not allowed.'},403);
@@ -61,6 +71,8 @@ export default {
         const rows = await used.json() as unknown[];
         if (!Array.isArray(rows) || rows.length) return reply({error:'This poster is still attached to a film.'},409);
         await env.POSTERS.delete(key);
+        const purge = await ctx.cache.purge({tags:[`poster:${key}`]});
+        if (!purge.success) return reply({error:'Poster removed from storage, but cache cleanup failed. Retry deletion.'},503);
         return reply({deleted:true});
       }
       const type = request.headers.get('Content-Type') || '';

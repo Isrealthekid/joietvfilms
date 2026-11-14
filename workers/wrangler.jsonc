@@ -4,6 +4,7 @@
   "main": "media.ts",
   "compatibility_date": "2026-11-14",
   "workers_dev": true,
+  "cache": { "enabled": true },
   "r2_buckets": [{ "binding": "POSTERS", "bucket_name": "joietvfilms-posters" }],
   "vars": {
     "SUPABASE_URL": "https://anmyxgevwunuwinspioi.supabase.co",

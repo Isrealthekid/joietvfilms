@@ -34,6 +34,8 @@ Frontend Cloudflare deployment remains `npx wrangler deploy` at the repository r
 
 ## Managing films
 
+Public posters use Cloudflare Workers Cache with a one-day edge TTL and a one-hour browser TTL. Repeated requests served from the edge avoid R2 reads. Each upload gets a unique URL, so replacement posters appear immediately. Successful API deletion purges the poster's cache tag globally; existing browser copies can remain for up to an hour. Uploads, authenticated image responses, preflight responses, and errors use `no-store`. Public image responses share wildcard CORS across frontend origins; admin endpoints retain the origin allowlist.
+
 Sign in at `/dashboard`, choose **Add a film**, upload a portrait JPEG/PNG/WebP (10 MB maximum), fill in the details, and optionally add a YouTube link. Use **Show NEW ribbon** and **Gallery order** to control presentation. Save as a draft or turn on **Publish to the gallery**. Publishing requires a poster, synopsis, director, and cast.
 
 Films load when the gallery opens, when the tab regains focus, and every minute while visible. Drafts do not appear publicly. No redeploy is required for film changes. A newly connected database starts empty; the original fictional sample films are retained in `lib/sample-films.ts` for offline development, not inserted into the live collection.
