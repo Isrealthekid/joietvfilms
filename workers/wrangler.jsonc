@@ -1,0 +1,13 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "joietvfilms-media",
+  "main": "media.ts",
+  "compatibility_date": "2026-11-14",
+  "workers_dev": true,
+  "r2_buckets": [{ "binding": "POSTERS", "bucket_name": "joietvfilms-posters" }],
+  "vars": {
+    "SUPABASE_URL": "https://anmyxgevwunuwinspioi.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_AXKGFr_TfzXBet1XCvjytQ_qQ6H4diN",
+    "ALLOWED_ORIGINS": "https://joietv-films.vercel.app,https://joietvfilms.vercel.app,https://joietvfilms.oluwoleisreal12.workers.dev,https://jtvf-cinema-gallery.oluwoleisreal12.chatgpt.site,http://localhost:3000,http://127.0.0.1:3000"
+  }
+}

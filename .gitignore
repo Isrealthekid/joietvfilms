@@ -6,3 +6,5 @@ out/
 *.tsbuildinfo
 *.tar.gz
 .wrangler/
+.dev.vars*
+supabase/.temp/

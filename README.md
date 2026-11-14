@@ -37,8 +37,8 @@ Validate without uploading with `npx wrangler deploy --dry-run`. For Cloudflare 
 
 Films, cast, directors, and synopses are fictional demo content. Photographic artwork is sourced from Unsplash. Replace the sample records in `app/page.tsx` and images in `public/posters/` with your licensed film assets.
 
-## Next phase
+## Dashboard, database, and poster storage
 
-The admin dashboard, Supabase database/authentication, and Cloudflare R2 uploads are not implemented in this display-first phase. The current app is a static export and needs no credentials. A future authenticated admin area should use Supabase row-level security and server-side signed R2 upload URLs; never expose privileged keys in the browser. Remove static-export mode or host the backend separately when adding server routes.
+The `/dashboard` route manages films, drafts, publishing, order, NEW ribbons, posters, and YouTube links. Supabase provides authentication and an RLS-protected database; a separate Cloudflare Worker uploads posters into a private R2 bucket. The frontend remains a static export on both hosts. See [dashboard setup](docs/dashboard-setup.md) for deployment commands, environment configuration, and access controls.
 
 Reduced-motion users can browse all films using keyboard focus, without automatic movement.
