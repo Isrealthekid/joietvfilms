@@ -8,6 +8,6 @@
   "vars": {
     "SUPABASE_URL": "https://anmyxgevwunuwinspioi.supabase.co",
     "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_AXKGFr_TfzXBet1XCvjytQ_qQ6H4diN",
-    "ALLOWED_ORIGINS": "https://joietv-films.vercel.app,https://joietvfilms.vercel.app,https://joietvfilms.oluwoleisreal12.workers.dev,https://jtvf-cinema-gallery.oluwoleisreal12.chatgpt.site,http://localhost:3000,http://127.0.0.1:3000"
+    "ALLOWED_ORIGINS": "https://films.thejoietv.com,https://joietv-films.vercel.app,https://joietvfilms.vercel.app,https://joietvfilms.oluwoleisreal12.workers.dev,https://jtvf-cinema-gallery.oluwoleisreal12.chatgpt.site,http://localhost:3000,http://127.0.0.1:3000"
   }
 }
