@@ -17,6 +17,8 @@ The supplied administrator credentials are in ignored `.env.local` as `ADMIN_EMA
 
 Project: `anmyxgevwunuwinspioi` (JTVF, Ireland). Schema: `supabase/migrations/20261114222630_film_dashboard.sql`.
 
+Active poster bucket: `joietvfilms-posters`. Media service: `https://joietvfilms-media.oluwoleisreal12.workers.dev`. The public frontend configuration points to this service for both hosts.
+
 ## R2 activation and deployment
 
 1. Activate R2 Object Storage in the Cloudflare dashboard if it is not already enabled. Cloudflare may require billing setup.
