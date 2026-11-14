@@ -17,6 +17,14 @@ Import this repository with the repository root as the Root Directory and `main`
 
 Do not publish `public/` or the repository root: neither contains the generated homepage. If a deployment still returns Vercel's `NOT_FOUND`, confirm the project is using the latest `main` commit and that the domain is assigned to that production deployment.
 
+## Deploy on Cloudflare Workers
+
+The gallery is a Next.js static export. `wrangler.jsonc` builds it with `npm run build` and deploys `out/` as Workers Static Assets. OpenNext is not needed for this phase.
+
+For a Git-connected Worker, use the repository root, production branch `main`, and deploy command `npx wrangler deploy`. Leave the dashboard Build command empty because Wrangler runs the configured build itself. Remove any dashboard command that runs `opennextjs-cloudflare`. The configured Worker name is `joietvfilms`; if your existing Worker has a different name, match it in `wrangler.jsonc` before deployment.
+
+Validate without uploading with `npx wrangler deploy --dry-run`. For Cloudflare Pages instead of Workers, use build command `npm run build` and output directory `out` with no OpenNext adapter.
+
 ## Included in this first phase
 
 - Gold rectangular frames with locally stored photographic poster artwork.
