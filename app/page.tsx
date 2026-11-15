@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { ArrowLeft, Pause, Play, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Pause, Play, X } from 'lucide-react';
 import { sampleMovies, type Movie } from '../lib/sample-films';
 import { getPublicSupabase, isConfigured } from '../lib/supabase';
 import { type Film, youtubeId } from '../lib/films';
@@ -38,6 +38,17 @@ export default function Home() {
   const frames = useRef<(HTMLDivElement | null)[]>([]);
   const closeButton = useRef<HTMLButtonElement>(null);
   const phase = useRef(0);
+  const activeFrame = useRef(0);
+  const slide = useRef<{ from: number; to: number; start: number } | null>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const frameStep = viewportWidth <= 600 ? 226 : 268;
+  const copies = movies.length > 1 ? Math.max(1, Math.ceil((viewportWidth + frameStep * 2) / (movies.length * frameStep))) : 1;
+  const displayedMovies = Array.from({ length: copies }, () => movies).flat();
+  useEffect(() => {
+    const observer = new ResizeObserver(([entry]) => setViewportWidth(entry.contentRect.width));
+    if (stage.current) observer.observe(stage.current);
+    return () => observer.disconnect();
+  }, []);
   const stopped = useRef(false);
   const returning = useRef(0);
   const drag = useRef<{ id: number; startX: number; startPhase: number; moved: boolean } | null>(null);
@@ -54,11 +65,16 @@ export default function Home() {
     let previous = 0;
     function tick(time: number) {
       const width = stage.current?.clientWidth || innerWidth;
-      const gap = Math.max(width < 600 ? 245 : 300, (width + 464) / Math.max(1, movies.length));
-      const cycle = gap * Math.max(1, movies.length);
+      const gap = frameStep;
+      const cycle = gap * Math.max(1, displayedMovies.length);
       const elapsed = previous ? Math.min(time - previous, 50) : 0;
       previous = time;
-      if (movies.length > 1 && !stopped.current && !drag.current && !reduced.matches && time > returning.current && !stage.current?.matches(':hover, :focus-within')) phase.current += elapsed * .025;
+      if (slide.current) {
+        const progress = reduced.matches ? 1 : Math.min((time - slide.current.start) / 450, 1);
+        phase.current = slide.current.from + (slide.current.to - slide.current.from) * (1 - Math.pow(1 - progress, 3));
+        if (progress === 1) slide.current = null;
+      }
+      if (!slide.current && movies.length > 1 && !stopped.current && !drag.current && !reduced.matches && time > returning.current && !stage.current?.matches(':hover, :focus-within')) phase.current += elapsed * .025;
       frames.current.forEach((frame, index) => {
         const x = movies.length === 1 ? width / 2 : ((index * gap - phase.current + gap) % cycle + cycle) % cycle - gap;
         frame?.style.setProperty('--x', `${x}px`);
@@ -67,17 +83,17 @@ export default function Home() {
     }
     request = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(request);
-  }, [movies]);
+  }, [movies, frameStep, displayedMovies.length]);
 
   function close() {
     setSelected(null);
     setIsReturning(true);
     returning.current = performance.now() + 3000;
-    if (selected !== null) frames.current[movies.findIndex(f => f.id === selected)]?.querySelector('button')?.focus({preventScroll:true});
+    if (selected !== null) frames.current[activeFrame.current]?.querySelector('button')?.focus({preventScroll:true});
   }
   useEffect(() => {
     if (selected !== null) closeButton.current?.focus({preventScroll:true});
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !video) { setSelected(null); setIsReturning(true); returning.current = performance.now() + 3000; if (selected !== null) frames.current[movies.findIndex(f => f.id === selected)]?.querySelector('button')?.focus({preventScroll:true}); } };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !video) { setSelected(null); setIsReturning(true); returning.current = performance.now() + 3000; if (selected !== null) frames.current[activeFrame.current]?.querySelector('button')?.focus({preventScroll:true}); } };
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
   }, [selected, video, movies]);
@@ -88,13 +104,21 @@ export default function Home() {
     if (selected !== null || drag.current) return;
     const rect = frames.current[index]?.getBoundingClientRect();
     if (rect && (rect.left < 0 || rect.right > innerWidth)) {
-      const gap = Math.max(innerWidth < 600 ? 245 : 300, (innerWidth + 464) / Math.max(1, movies.length));
+      const gap = frameStep;
+      slide.current = null;
       phase.current = index * gap - innerWidth / 2;
     }
   }
 
+  function scrollGallery(direction: number) {
+    if (selected !== null || isReturning || movies.length < 2) return;
+    slide.current = { from: phase.current, to: (slide.current?.to ?? phase.current) + frameStep * direction, start: performance.now() };
+    returning.current = performance.now() + 1600;
+  }
+
   function startDrag(event: PointerEvent<HTMLElement>) {
     if (selected !== null || isReturning || !event.isPrimary || event.button !== 0) return;
+    slide.current = null;
     suppressClickUntil.current = 0;
     drag.current = { id: event.pointerId, startX: event.clientX, startPhase: phase.current, moved: false };
   }
@@ -129,13 +153,12 @@ export default function Home() {
     }} onKeyDown={event => {
       if (selected !== null || isReturning || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
       event.preventDefault();
-      const width = stage.current?.clientWidth || innerWidth;
-      phase.current += Math.max(width < 600 ? 245 : 300, (width + 464) / Math.max(1, movies.length)) * (event.key === 'ArrowRight' ? 1 : -1);
+      scrollGallery(event.key === 'ArrowRight' ? 1 : -1);
     }}>
       {!movies.length && <div className="gallery-empty" role="status">{loadingFilms ? 'Loading films…' : galleryError || 'New stories are on their way.'}{galleryError && <button onClick={()=>window.location.reload()}>Try again</button>}</div>}
-      {movies.map((m, index) => <div ref={el => { frames.current[index] = el; }} key={m.id} className={`artwork ${selected === m.id ? 'selected' : ''} ${movie && selected !== m.id ? 'unselected' : ''}`} style={{'--x': `${index * 300}px`, '--poster-color': m.color} as React.CSSProperties}>
-        <button className="frame-button" aria-label={`Explore ${m.title}`} aria-describedby={m.isNew ? `new-film-${m.id}` : undefined} aria-expanded={selected === m.id} tabIndex={movie ? -1 : 0} onFocus={() => reveal(index)} onClick={() => setSelected(m.id)}>
-          {m.isNew && <span className="new-ribbon" id={`new-film-${m.id}`}><span><i aria-hidden="true">★</i> NEW</span></span>}
+      {displayedMovies.map((m, index) => <div ref={el => { frames.current[index] = el; }} key={`${m.id}-${index}`} className={`artwork ${selected === m.id && activeFrame.current === index ? 'selected' : ''} ${movie && activeFrame.current !== index ? 'unselected' : ''}`} style={{'--x': `${index * frameStep}px`, '--poster-color': m.color} as React.CSSProperties}>
+        <button className="frame-button" aria-label={`Explore ${m.title}`} aria-describedby={m.isNew ? `new-film-${m.id}-${index}` : undefined} aria-expanded={selected === m.id && activeFrame.current === index} tabIndex={movie || index >= movies.length ? -1 : 0} onFocus={() => reveal(index)} onClick={() => { activeFrame.current = index; slide.current = null; setSelected(m.id); }}>
+          {m.isNew && <span className="new-ribbon" id={`new-film-${m.id}-${index}`}><span><i aria-hidden="true">★</i> NEW</span></span>}
           <div className="frame"><div className="frame-inner"><div className="poster"><img src={m.image} alt="" draggable={false}/>{!m.posterArtwork && <><div className="poster-shade"/><span className="poster-credit">A FILM BY {m.director.toUpperCase()}</span><div className="poster-title">{m.title.split(' ').map((word, i) => <span key={i}>{word} </span>)}</div><span className="poster-subtitle">{m.subtitle}</span><span className="poster-bottom">JTVF ORIGINAL PICTURES<br/><small>A STORY WORTH TELLING</small></span></>}</div></div></div>
         </button>
       </div>)}
@@ -143,6 +166,10 @@ export default function Home() {
         {movie && <><button ref={closeButton} className="back-button" onClick={close} aria-label="Back to films"><ArrowLeft size={20}/></button><h1>{movie.title.toLowerCase()}</h1><p className="synopsis">{movie.description}</p><dl><dt>Cast</dt><dd>{movie.cast}</dd></dl>{movie.youtubeUrl && youtubeId(movie.youtubeUrl) && <button className="play-film" onClick={()=>setVideo(youtubeId(movie.youtubeUrl!))}><Play size={16} fill="currentColor"/> Play film</button>}</>}
       </div>
     </section>
+    {!movie && movies.length > 1 && <div className="gallery-arrows" role="group" aria-label="Gallery scrolling">
+      <button aria-label="Scroll gallery left" disabled={isReturning} onClick={() => scrollGallery(-1)}><ArrowLeft size={22}/></button>
+      <button aria-label="Scroll gallery right" disabled={isReturning} onClick={() => scrollGallery(1)}><ArrowRight size={22}/></button>
+    </div>}
     {!movie && movies.length > 0 && <button className="motion-control" aria-label={paused ? 'Play gallery' : 'Pause gallery'} onClick={() => setPaused(!paused)}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button>}
     <dialog className="video-dialog" ref={player} aria-label="Film player" onCancel={event=>{event.preventDefault();setVideo(null);}} onClose={()=>setVideo(null)}><button className="close-video" aria-label="Close video" onClick={()=>setVideo(null)}><X size={24}/></button>{video && <><iframe title="YouTube film player" src={`https://www.youtube-nocookie.com/embed/${video}?autoplay=1`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/><a href={`https://www.youtube.com/watch?v=${video}`} target="_blank" rel="noreferrer">Watch on YouTube</a></>}</dialog>
   </main>;
