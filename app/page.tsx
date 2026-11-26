@@ -296,6 +296,12 @@ function Hero({
   const section = useRef<HTMLElement>(null);
   const [inView, setInView] = useState(true);
   const [wide, setWide] = useState(true);
+  // The playing hero is for computers; phones keep the still picture (less data, no player buttons).
+  const [canPlay, setCanPlay] = useState(false);
+  useEffect(() => {
+    const saveData = (navigator as unknown as { connection?: { saveData?: boolean } }).connection?.saveData;
+    setCanPlay(!saveData && window.matchMedia('(hover: hover) and (min-width: 900px)').matches);
+  }, []);
 
   // Only play while the hero is on screen.
   useEffect(() => {
@@ -311,7 +317,7 @@ function Hero({
       <div className="nf-hero-bg">
         <Pic src={movie.image} className={wide ? '' : 'blur'} fit={false} onShape={setWide} />
       </div>
-      {id && videoOn && inView && <HeroVideo id={id} />}
+      {id && videoOn && inView && canPlay && <HeroVideo id={id} />}
       {!wide && (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="nf-hero-poster" src={movie.image} alt={`${movie.title} poster`} />
@@ -438,7 +444,8 @@ function Details({ movie, onClose, onPlay }: { movie: Movie; onClose: () => void
           <button className="nf-sheet-close" aria-label="Close" onClick={onClose}>
             <X size={20} />
           </button>
-          <div className="nf-sheet-head">
+        </div>
+        <div className="nf-sheet-head">
             <h2>{movie.title}</h2>
             <div className="nf-meta">
               {movie.rating && <span className="nf-rating">{movie.rating}</span>}
@@ -454,7 +461,6 @@ function Details({ movie, onClose, onPlay }: { movie: Movie; onClose: () => void
               </button>
             )}
           </div>
-        </div>
         <div className="nf-sheet-body">
           <div>
             {movie.subtitle && <p style={{ marginBottom: 12, color: '#fff', fontWeight: 600 }}>{movie.subtitle}</p>}
