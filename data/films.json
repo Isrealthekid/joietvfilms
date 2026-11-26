@@ -93,5 +93,26 @@
     "language": "English",
     "tags": "",
     "releaseDate": ""
+  },
+  {
+    "id": 6,
+    "title": "The Results Are In",
+    "subtitle": "A lot can happen the night before election...",
+    "genre": "Drama",
+    "year": "2027",
+    "length": "22 mins",
+    "director": "Joy Karenate-Egbuson",
+    "cast": "Precious Okolie, Honour Brown",
+    "description": "",
+    "poster": "",
+    "youtubeUrl": "",
+    "isNew": false,
+    "published": true,
+    "rating": "15",
+    "writer": "Joy Karenate-Egbuson",
+    "producer": "The Joie TV Productions in collaboration with Phave's Studios",
+    "language": "English",
+    "tags": "Emotional",
+    "releaseDate": "January 2027"
   }
 ]
