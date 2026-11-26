@@ -1,11 +1,88 @@
-export type Movie = { id: number; title: string; subtitle: string; genre: string; year: string; length: string; director: string; cast: string; description: string; image: string; color: string; isNew?: boolean; youtubeUrl?: string; posterArtwork?: boolean };
-export const sampleMovies: Movie[] = [
-  { id: 1, isNew: true, title: 'THE LAST LIGHT', subtitle: 'Some journeys lead you home.', genre: 'Drama', year: '2025', length: '1h 48m', director: 'Amara Okafor', cast: 'Ada Nwosu · Daniel Cole · Femi Ajayi', description: 'Returning to the coast after years away, a young photographer finds an unfinished roll of film. As the images reveal a summer she barely remembers, she begins to see her family—and herself—in a different light.', image: '/posters/coast.jpg', color: '#b5bda8' },
-  { id: 2, title: 'AFTER HOURS', subtitle: 'The city has a story to tell.', genre: 'Thriller', year: '2024', length: '1h 56m', director: 'Elias Morgan', cast: 'James Ade · Zara Bello · Oliver Reed', description: 'One missed train. One unexpected encounter. A quiet musician is drawn into a night that winds through the hidden corners of a restless city, where every stranger seems to know more than they should.', image: '/posters/city.jpg', color: '#a9b7b1' },
-  { id: 3, isNew: true, title: 'WILD AT HEART', subtitle: 'Find yourself somewhere lost.', genre: 'Adventure', year: '2025', length: '2h 06m', director: 'Nia Campbell', cast: 'Maya Ellis · Kofi Mensah · Lena James', description: 'Two estranged sisters set out across an unfamiliar wilderness with a hand-drawn map and a promise to keep. Far from the lives they built, they discover that the longest distance is sometimes the one between two people.', image: '/posters/forest.jpg', color: '#b8c6a2' },
-  { id: 4, title: 'A QUIET EARTH', subtitle: 'Everything leaves an echo.', genre: 'Drama', year: '2025', length: '1h 42m', director: 'Tomi Adebayo', cast: 'Ife Lawson · Samuel Obi · Ruth Williams', description: 'In a remote mountain village, a sound recordist arrives to document a landscape on the verge of change. An unlikely friendship with a local gardener teaches her to listen for the things that cannot be recorded.', image: '/posters/mountain.jpg', color: '#d2c9a7' },
-  { id: 5, title: 'BLUE HOURS', subtitle: 'Between goodbye and tomorrow.', genre: 'Romance', year: '2024', length: '1h 38m', director: 'Sofia Laurent', cast: 'Chloe Martin · Alex Okeke · Eva Laurent', description: 'On the last evening of a summer by the sea, two old friends take the long way home. Across empty beaches and sleeping streets, a conversation years in the making finally begins.', image: '/posters/ocean.jpg', color: '#b5c9d2' },
-  { id: 6, title: 'SUN CHILD', subtitle: 'A little courage goes a long way.', genre: 'Adventure', year: '2025', length: '1h 52m', director: 'Malik Johnson', cast: 'Noah Banks · Aisha Cole · Ben Thomas', description: 'Armed with a borrowed bicycle and an impossible plan, a young dreamer crosses the sun-scorched countryside to reach a once-in-a-lifetime festival. Along the way, strangers become a family of their own.', image: '/posters/desert.jpg', color: '#e4c390' },
-  { id: 7, title: 'STILL HERE', subtitle: 'Ordinary lives. Extraordinary love.', genre: 'Documentary', year: '2024', length: '1h 24m', director: 'Grace Eze', cast: 'An ensemble of everyday storytellers', description: 'A lyrical portrait of a neighbourhood told through the people who have called it home for generations. Their small rituals, shared meals, and enduring friendships become a celebration of belonging.', image: '/posters/home.jpg', color: '#d9c4ad' },
-];
+export type Movie = {
+  id: number;
+  title: string;
+  subtitle: string;
+  genre: string;
+  year: string;
+  length: string;
+  director: string;
+  cast: string;
+  description: string;
+  image: string;
+  color: string;
+  isNew?: boolean;
+  youtubeUrl?: string;
+  /** True when the image is a wide still (like a YouTube thumbnail) rather than a tall poster. */
+  landscape?: boolean;
+};
 
+const yt = (id: string) => `https://img.youtube.com/vi/${id}/maxresdefault.jpg`;
+const link = (id: string) => `https://www.youtube.com/watch?v=${id}`;
+
+// Shown only if the film database can't be reached, so the page is never empty.
+export const fallbackMovies: Movie[] = [
+  {
+    id: -1,
+    title: 'Wake Up, Eat, Sleep, Repeat',
+    subtitle: 'The routine, the fatigue, the small moments that keep us going.',
+    genre: 'Drama',
+    year: '2024',
+    length: '',
+    director: 'Joy Karenate-Egbuson',
+    cast: '',
+    description:
+      'A short film for anyone who has ever felt stuck in the daily cycle but still finds a way to keep moving forward. Watch, reflect, and maybe break the cycle.',
+    image: yt('QxYfDjL8zcI'),
+    color: '#FF7A00',
+    youtubeUrl: link('QxYfDjL8zcI'),
+    landscape: true,
+  },
+  {
+    id: -2,
+    title: 'Resonance',
+    subtitle: 'How the past, present and future connect.',
+    genre: 'Drama',
+    year: '2024',
+    length: '',
+    director: 'Joy Karenate-Egbuson',
+    cast: '',
+    description:
+      'Resonance is about the ripples people leave behind and the way certain memories never really fade. It is a meditation on time: the things we carry, and the things we pass on.',
+    image: yt('TbVFPjYVFY0'),
+    color: '#C6249B',
+    youtubeUrl: link('TbVFPjYVFY0'),
+    landscape: true,
+  },
+  {
+    id: -3,
+    title: 'I Love You',
+    subtitle: 'Messy, complicated, and beautiful.',
+    genre: 'Romance',
+    year: '2024',
+    length: '',
+    director: 'Joy Karenate-Egbuson',
+    cast: '',
+    description:
+      "I Love You is a short film that sits inside the mess and the beauty of loving someone. Whether you've been in love, lost it, or are still searching, this story will relate in more ways than one.",
+    image: yt('dDHvTvbNeW4'),
+    color: '#FFD34A',
+    youtubeUrl: link('dDHvTvbNeW4'),
+    landscape: true,
+  },
+  {
+    id: -4,
+    title: 'Knock Knock',
+    subtitle: 'The dangers of being in the dorm room alone.',
+    genre: 'Horror',
+    year: '2023',
+    length: '',
+    director: 'Joy Karenate-Egbuson',
+    cast: '',
+    description:
+      "Knock Knock is a tight, atmospheric horror short built on a very ordinary fear: being alone in a space that suddenly isn't yours anymore.",
+    image: yt('3edRZ78dIuI'),
+    color: '#FF7A00',
+    youtubeUrl: link('3edRZ78dIuI'),
+    landscape: true,
+  },
+];

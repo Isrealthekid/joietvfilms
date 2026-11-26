@@ -1,186 +1,343 @@
 'use client';
 
-import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { ArrowLeft, ArrowRight, Pause, Play, X } from 'lucide-react';
-import { sampleMovies, type Movie } from '../lib/sample-films';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Info, Play, X } from 'lucide-react';
+import { fallbackMovies, type Movie } from '../lib/sample-films';
 import { getPublicSupabase, isConfigured } from '../lib/supabase';
 import { type Film, youtubeId } from '../lib/films';
+import Intro from './Intro';
+import './home.css';
+
+const MAIN_SITE = 'https://thejoietv.com';
+
+function toMovie(f: Film): Movie {
+  return {
+    id: f.id,
+    title: f.title,
+    subtitle: f.subtitle,
+    genre: f.genre,
+    year: String(f.release_year || ''),
+    length: f.runtime_minutes ? `${f.runtime_minutes} min` : '',
+    director: f.director,
+    cast: f.cast_names.join(' · '),
+    description: f.synopsis,
+    image: f.poster_url,
+    color: f.color,
+    isNew: f.is_new,
+    youtubeUrl: f.youtube_url,
+  };
+}
+
+const isSoon = (m: Movie) => !m.youtubeUrl || !youtubeId(m.youtubeUrl);
 
 export default function Home() {
-  const [movies, setMovies] = useState<Movie[]>(isConfigured ? [] : sampleMovies);
-  const [galleryError, setGalleryError] = useState('');
-  const [loadingFilms, setLoadingFilms] = useState(isConfigured);
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'offline'>(isConfigured ? 'loading' : 'offline');
+  const [scrolled, setScrolled] = useState(false);
+  const [details, setDetails] = useState<Movie | null>(null);
   const [video, setVideo] = useState<string | null>(null);
   const player = useRef<HTMLDialogElement>(null);
+
+  // Load the published films, and refresh now and then so a new film appears without a reload.
   useEffect(() => {
     if (!isConfigured) return;
     let active = true;
     const db = getPublicSupabase();
     async function refresh() {
-      const {data,error} = await db.from('films').select('*').eq('published',true).order('sort_order').order('id');
-      if (!active) return;
-      setLoadingFilms(false);
-      if(error) { setGalleryError('The gallery could not be loaded. Please try again.'); return; }
-      setGalleryError('');
-      setMovies((data as Film[]).map(f=>({id:f.id,title:f.title,subtitle:f.subtitle,genre:f.genre,year:String(f.release_year||''),length:f.runtime_minutes ? `${f.runtime_minutes} min` : '',director:f.director,cast:f.cast_names.join(' · '),description:f.synopsis,image:f.poster_url,color:f.color,isNew:f.is_new,youtubeUrl:f.youtube_url,posterArtwork:true})));
+      try {
+        const { data, error } = await db
+          .from('films')
+          .select('*')
+          .eq('published', true)
+          .order('sort_order')
+          .order('id');
+        if (!active) return;
+        if (error) throw error;
+        setMovies((data as Film[]).map(toMovie));
+        setStatus('ready');
+      } catch {
+        if (active) setStatus((s) => (s === 'ready' ? s : 'offline'));
+      }
     }
     void refresh();
-    const interval = setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 60000);
-    const onFocus = () => void refresh();
-    window.addEventListener('focus',onFocus);
-    return () => {active=false;clearInterval(interval);window.removeEventListener('focus',onFocus);};
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh();
+    }, 60000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
-  useEffect(() => { if(video) player.current?.showModal(); else player.current?.close(); }, [video]);
-  const [selected, setSelected] = useState<number | null>(null);
-  const [paused, setPaused] = useState(false);
-  const [isReturning, setIsReturning] = useState(false);
-  const stage = useRef<HTMLDivElement>(null);
-  const frames = useRef<(HTMLDivElement | null)[]>([]);
-  const closeButton = useRef<HTMLButtonElement>(null);
-  const phase = useRef(0);
-  const activeFrame = useRef(0);
-  const slide = useRef<{ from: number; to: number; start: number } | null>(null);
-  const [viewportWidth, setViewportWidth] = useState(0);
-  const frameStep = viewportWidth <= 600 ? 226 : 268;
-  const frameWidth = viewportWidth <= 600 ? 198 : 232;
-  const contentWidth = movies.length ? (movies.length - 1) * frameStep + frameWidth : 0;
-  const maxScroll = Math.max(0, contentWidth - viewportWidth);
-  const overflowing = viewportWidth > 0 && maxScroll > 0;
-  const autoDirection = useRef(1);
+
   useEffect(() => {
-    const observer = new ResizeObserver(([entry]) => setViewportWidth(entry.contentRect.width));
-    if (stage.current) observer.observe(stage.current);
-    return () => observer.disconnect();
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
-  const stopped = useRef(false);
-  const returning = useRef(0);
-  const drag = useRef<{ id: number; startX: number; startPhase: number; moved: boolean } | null>(null);
-  const suppressClickUntil = useRef(0);
-  const movie = movies.find(m => m.id === selected);
-  stopped.current = selected !== null || paused;
-  useEffect(() => {
-    if (selected !== null && !movies.some(film => film.id === selected)) { setSelected(null); setVideo(null); }
-  }, [movies, selected]);
 
   useEffect(() => {
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-    let request = 0;
-    let previous = 0;
-    function tick(time: number) {
-      const width = stage.current?.clientWidth || innerWidth;
-      const gap = frameStep;
+    if (video) player.current?.showModal();
+    else player.current?.close();
+  }, [video]);
 
-      const elapsed = previous ? Math.min(time - previous, 50) : 0;
-      previous = time;
-      if (!overflowing) { phase.current = 0; slide.current = null; }
-      if (slide.current) {
-        const progress = reduced.matches ? 1 : Math.min((time - slide.current.start) / 450, 1);
-        phase.current = slide.current.from + (slide.current.to - slide.current.from) * (1 - Math.pow(1 - progress, 3));
-        if (progress === 1) slide.current = null;
-      }
-      if (overflowing && !slide.current && !stopped.current && !drag.current && !reduced.matches && time > returning.current && !stage.current?.matches(':hover, :focus-within')) {
-        phase.current += elapsed * .025 * autoDirection.current;
-        if (phase.current >= maxScroll) autoDirection.current = -1;
-        if (phase.current <= 0) autoDirection.current = 1;
-      }
-      phase.current = Math.max(0, Math.min(maxScroll, phase.current));
-      frames.current.forEach((frame, index) => {
-        const x = (overflowing ? frameWidth / 2 - phase.current : (width - contentWidth + frameWidth) / 2) + index * gap;
-        frame?.style.setProperty('--x', `${x}px`);
-      });
-      request = requestAnimationFrame(tick);
-    }
-    request = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(request);
-  }, [movies, frameStep, frameWidth, contentWidth, maxScroll, overflowing]);
-
-  function close() {
-    setSelected(null);
-    setIsReturning(true);
-    returning.current = performance.now() + 3000;
-    if (selected !== null) frames.current[activeFrame.current]?.querySelector('button')?.focus({preventScroll:true});
-  }
   useEffect(() => {
-    if (selected !== null) closeButton.current?.focus({preventScroll:true});
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !video) { setSelected(null); setIsReturning(true); returning.current = performance.now() + 3000; if (selected !== null) frames.current[activeFrame.current]?.querySelector('button')?.focus({preventScroll:true}); } };
-    window.addEventListener('keydown', escape);
-    return () => window.removeEventListener('keydown', escape);
-  }, [selected, video, movies]);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !video) setDetails(null);
+    };
+    window.addEventListener('keydown', onKey);
+    document.body.style.overflow = details ? 'hidden' : '';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [details, video]);
 
-  useEffect(() => { if (!isReturning) return; const timer = setTimeout(() => setIsReturning(false), 3000); return () => clearTimeout(timer); }, [isReturning]);
+  const list = status === 'offline' && !movies.length ? fallbackMovies : movies;
 
-  function reveal(index: number) {
-    if (!overflowing || selected !== null || drag.current) return;
-    const rect = frames.current[index]?.getBoundingClientRect();
-    if (rect && (rect.left < 0 || rect.right > innerWidth)) {
-      const gap = frameStep;
-      slide.current = null;
-      phase.current = Math.max(0, Math.min(maxScroll, index * gap + frameWidth / 2 - viewportWidth / 2));
-    }
-  }
+  // The hero is the newest film that is still "coming soon", else the newest marked New, else the first.
+  const hero = useMemo(() => {
+    const soon = list.filter(isSoon);
+    return soon[soon.length - 1] ?? list.find((m) => m.isNew) ?? list[0];
+  }, [list]);
 
-  function scrollGallery(direction: number) {
-    if (!overflowing || selected !== null || isReturning) return;
-    slide.current = { from: phase.current, to: Math.max(0, Math.min(maxScroll, (slide.current?.to ?? phase.current) + frameStep * direction)), start: performance.now() };
-    returning.current = performance.now() + 1600;
-  }
+  const newRow = list.filter((m) => isSoon(m) || m.isNew);
+  const genres = useMemo(() => {
+    const by = new Map<string, Movie[]>();
+    list.forEach((m) => {
+      const g = m.genre || 'Films';
+      by.set(g, [...(by.get(g) ?? []), m]);
+    });
+    return list.length > 6 ? [...by.entries()].filter(([, v]) => v.length >= 2) : [];
+  }, [list]);
 
-  function startDrag(event: PointerEvent<HTMLElement>) {
-    if (!overflowing || selected !== null || isReturning || !event.isPrimary || event.button !== 0) return;
-    slide.current = null;
-    suppressClickUntil.current = 0;
-    drag.current = { id: event.pointerId, startX: event.clientX, startPhase: phase.current, moved: false };
-  }
+  const play = (m: Movie) => {
+    const id = m.youtubeUrl ? youtubeId(m.youtubeUrl) : null;
+    if (id) setVideo(id);
+  };
 
-  function moveDrag(event: PointerEvent<HTMLElement>) {
-    const gesture = drag.current;
-    if (!gesture || gesture.id !== event.pointerId) return;
-    const distance = event.clientX - gesture.startX;
-    if (!gesture.moved && Math.abs(distance) < 6) return;
-    gesture.moved = true;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    event.currentTarget.classList.add('is-dragging');
-    phase.current = Math.max(0, Math.min(maxScroll, gesture.startPhase - distance));
-  }
+  return (
+    <main className="nf" id="top">
+      <Intro />
 
-  function endDrag(event: PointerEvent<HTMLElement>) {
-    if (drag.current?.id !== event.pointerId) return;
-    if (drag.current.moved) suppressClickUntil.current = performance.now() + 500;
-    drag.current = null;
-    event.currentTarget.classList.remove('is-dragging');
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-  }
+      <header className={`nf-nav ${scrolled ? 'is-solid' : ''}`}>
+        <div className="nf-nav-left">
+          <a className="nf-logo" href="#top" aria-label="The Joie TV Films">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt="The Joie TV" />
+          </a>
+          <nav className="nf-links" aria-label="Main navigation">
+            <a className="is-active" href="#top">Films</a>
+            <a href={`${MAIN_SITE}/work`}>Works</a>
+            <a href={`${MAIN_SITE}/contact`}>Collaborate</a>
+            <a href={`${MAIN_SITE}/contact`}>Contact</a>
+          </nav>
+        </div>
+        <div className="nf-nav-right">
+          <a href={MAIN_SITE}>thejoietv.com</a>
+        </div>
+      </header>
 
-  return <main className={`exhibition ${movie ? 'is-focused' : ''} ${isReturning ? 'is-returning' : ''}`}>
-    <div className="wall-grain"/>
-    <nav className="text-nav" aria-label="Main navigation">
-      <div><button onClick={close}>Films</button><span aria-hidden="true">—</span><span>Works</span></div>
-      <div><span>Collaborate</span><span aria-hidden="true">—</span><span>Contact</span></div>
-    </nav>
-    <section ref={stage} className={`gallery-stage ${overflowing ? 'is-overflowing' : 'is-static'}`} aria-label="Film gallery" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onLostPointerCapture={event => { if (event.target === event.currentTarget) endDrag(event); }} onPointerLeave={event => { if (!drag.current?.moved) endDrag(event); }} onClickCapture={event => {
-      if (performance.now() < suppressClickUntil.current) { event.preventDefault(); event.stopPropagation(); }
-    }} onKeyDown={event => {
-      if (selected !== null || isReturning || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-      event.preventDefault();
-      scrollGallery(event.key === 'ArrowRight' ? 1 : -1);
-    }}>
-      {!movies.length && <div className="gallery-empty" role="status">{loadingFilms ? 'Loading films…' : galleryError || 'New stories are on their way.'}{galleryError && <button onClick={()=>window.location.reload()}>Try again</button>}</div>}
-      {movies.map((m, index) => <div ref={el => { frames.current[index] = el; }} key={`${m.id}-${index}`} className={`artwork ${selected === m.id && activeFrame.current === index ? 'selected' : ''} ${movie && activeFrame.current !== index ? 'unselected' : ''}`} style={{'--x': `${index * frameStep}px`, '--poster-color': m.color} as React.CSSProperties}>
-        <button className="frame-button" aria-label={`Explore ${m.title}`} aria-describedby={m.isNew ? `new-film-${m.id}-${index}` : undefined} aria-expanded={selected === m.id && activeFrame.current === index} tabIndex={movie ? -1 : 0} onFocus={() => reveal(index)} onClick={() => { activeFrame.current = index; slide.current = null; setSelected(m.id); }}>
-          {m.isNew && <span className="new-ribbon" id={`new-film-${m.id}-${index}`}><span><i aria-hidden="true">★</i> NEW</span></span>}
-          <div className="frame"><div className="frame-inner"><div className="poster"><img src={m.image} alt="" draggable={false}/>{!m.posterArtwork && <><div className="poster-shade"/><span className="poster-credit">A FILM BY {m.director.toUpperCase()}</span><div className="poster-title">{m.title.split(' ').map((word, i) => <span key={i}>{word} </span>)}</div><span className="poster-subtitle">{m.subtitle}</span><span className="poster-bottom">JTVF ORIGINAL PICTURES<br/><small>A STORY WORTH TELLING</small></span></>}</div></div></div>
-        </button>
-      </div>)}
-      <div className={`film-details ${movie ? 'visible' : ''}`} aria-hidden={!movie}>
-        {movie && <><button ref={closeButton} className="back-button" onClick={close} aria-label="Back to films"><ArrowLeft size={20}/></button><h1>{movie.title.toLowerCase()}</h1><p className="synopsis">{movie.description}</p><dl><dt>Cast</dt><dd>{movie.cast}</dd></dl>{movie.youtubeUrl && youtubeId(movie.youtubeUrl) && <button className="play-film" onClick={()=>setVideo(youtubeId(movie.youtubeUrl!))}><Play size={16} fill="currentColor"/> Play film</button>}</>}
+      {hero && <Hero movie={hero} onPlay={() => play(hero)} onInfo={() => setDetails(hero)} />}
+
+      <div className="nf-rows">
+        {status === 'loading' && !list.length && <p className="nf-empty">Loading films…</p>}
+        {status === 'ready' && !list.length && <p className="nf-empty">New stories are on their way.</p>}
+        {newRow.length > 0 && <Row title="New & Coming Soon" movies={newRow} onOpen={setDetails} />}
+        {list.length > 0 && <Row title="All Films" movies={list} onOpen={setDetails} />}
+        {genres.map(([genre, items]) => (
+          <Row key={genre} title={genre} movies={items} onOpen={setDetails} />
+        ))}
       </div>
-    </section>
-    {!movie && overflowing && <div className="gallery-arrows" role="group" aria-label="Gallery scrolling">
-      <button aria-label="Scroll gallery left" disabled={isReturning} onClick={() => scrollGallery(-1)}><ArrowLeft size={22}/></button>
-      <button aria-label="Scroll gallery right" disabled={isReturning} onClick={() => scrollGallery(1)}><ArrowRight size={22}/></button>
-    </div>}
-    {!movie && overflowing && <button className="motion-control" aria-label={paused ? 'Play gallery' : 'Pause gallery'} onClick={() => setPaused(!paused)}>{paused ? <Play size={16}/> : <Pause size={16}/>}</button>}
-    <dialog className="video-dialog" ref={player} aria-label="Film player" onCancel={event=>{event.preventDefault();setVideo(null);}} onClose={()=>setVideo(null)}><button className="close-video" aria-label="Close video" onClick={()=>setVideo(null)}><X size={24}/></button>{video && <><iframe title="YouTube film player" src={`https://www.youtube-nocookie.com/embed/${video}?autoplay=1`} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/><a href={`https://www.youtube.com/watch?v=${video}`} target="_blank" rel="noreferrer">Watch on YouTube</a></>}</dialog>
-  </main>;
+
+      <footer className="nf-foot">
+        <span>&copy; 2027 The Joie TV</span>
+        <a href={MAIN_SITE}>thejoietv.com</a>
+      </footer>
+
+      {details && (
+        <Details
+          movie={details}
+          onClose={() => setDetails(null)}
+          onPlay={() => play(details)}
+        />
+      )}
+
+      <dialog
+        className="nf-player"
+        ref={player}
+        aria-label="Film player"
+        onCancel={(e) => {
+          e.preventDefault();
+          setVideo(null);
+        }}
+        onClose={() => setVideo(null)}
+      >
+        <button className="nf-player-close" aria-label="Close video" onClick={() => setVideo(null)}>
+          <X size={22} />
+        </button>
+        {video && (
+          <>
+            <iframe
+              title="Film player"
+              src={`https://www.youtube-nocookie.com/embed/${video}?autoplay=1`}
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              allowFullScreen
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+            <a href={`https://www.youtube.com/watch?v=${video}`} target="_blank" rel="noreferrer">
+              Watch on YouTube
+            </a>
+          </>
+        )}
+      </dialog>
+    </main>
+  );
 }
 
+/** A film's picture. Wide stills fill the space; tall posters are shown whole over a blurred copy. */
+function Art({ movie, className }: { movie: Movie; className?: string }) {
+  const [wide, setWide] = useState(!!movie.landscape);
+  return (
+    <>
+      {!wide && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className={`blur ${className ?? ''}`} src={movie.image} alt="" aria-hidden="true" />
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={movie.image}
+        alt=""
+        className={wide ? className : `poster ${className ?? ''}`}
+        onLoad={(e) => setWide(e.currentTarget.naturalWidth > e.currentTarget.naturalHeight)}
+      />
+    </>
+  );
+}
+
+function Hero({ movie, onPlay, onInfo }: { movie: Movie; onPlay: () => void; onInfo: () => void }) {
+  const soon = isSoon(movie);
+  const meta = [movie.year, movie.genre, movie.length].filter(Boolean);
+  return (
+    <section className="nf-hero" aria-label="Featured film">
+      <div className="nf-hero-bg">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img className={movie.landscape ? '' : 'blur'} src={movie.image} alt="" />
+      </div>
+      {!movie.landscape && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="nf-hero-poster" src={movie.image} alt={`${movie.title} poster`} />
+      )}
+      <div className="nf-hero-shade" />
+      <div className="nf-hero-body">
+        <span className={`nf-tag ${soon ? 'is-pink' : ''}`}>{soon ? 'Coming soon' : movie.isNew ? 'New' : 'Featured'}</span>
+        <h1 className="nf-title">{movie.title}</h1>
+        <div className="nf-meta">
+          {meta.map((m, i) => (
+            <span key={i}>{m}</span>
+          ))}
+        </div>
+        {movie.description && <p className="nf-synopsis">{movie.description}</p>}
+        <div className="nf-actions">
+          {soon ? (
+            <span className="nf-btn soon">Coming soon</span>
+          ) : (
+            <button className="nf-btn primary" onClick={onPlay}>
+              <Play size={18} fill="currentColor" /> Play
+            </button>
+          )}
+          <button className="nf-btn ghost" onClick={onInfo}>
+            <Info size={18} /> More info
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Row({ title, movies, onOpen }: { title: string; movies: Movie[]; onOpen: (m: Movie) => void }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const move = (dir: number) =>
+    scroller.current?.scrollBy({ left: dir * scroller.current.clientWidth * 0.8, behavior: 'smooth' });
+  return (
+    <section className="nf-row" aria-label={title}>
+      <h2>{title}</h2>
+      <button className="nf-arrow left" aria-label={`${title}: scroll left`} onClick={() => move(-1)}>
+        <ChevronLeft />
+      </button>
+      <div className="nf-scroller" ref={scroller}>
+        {movies.map((m) => (
+          <button
+            key={`${title}-${m.id}`}
+            className={`nf-card ${m.landscape ? 'wide' : ''}`}
+            onClick={() => onOpen(m)}
+            aria-label={`${m.title}${isSoon(m) ? ', coming soon' : ''}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={m.image} alt="" draggable={false} loading="lazy" />
+            {isSoon(m) ? (
+              <span className="nf-badge is-pink">Soon</span>
+            ) : (
+              m.isNew && <span className="nf-badge">New</span>
+            )}
+            <span className="nf-card-info">
+              <span className="nf-card-title">{m.title}</span>
+              {m.year && <span className="nf-card-sub">{[m.year, m.genre].filter(Boolean).join(' · ')}</span>}
+            </span>
+          </button>
+        ))}
+      </div>
+      <button className="nf-arrow right" aria-label={`${title}: scroll right`} onClick={() => move(1)}>
+        <ChevronRight />
+      </button>
+    </section>
+  );
+}
+
+function Details({ movie, onClose, onPlay }: { movie: Movie; onClose: () => void; onPlay: () => void }) {
+  const soon = isSoon(movie);
+  const facts: [string, string][] = [
+    ['Director', movie.director],
+    ['Cast', movie.cast],
+    ['Genre', movie.genre],
+    ['Year', [movie.year, movie.length].filter(Boolean).join(' · ')],
+  ];
+  return (
+    <div className="nf-modal" onClick={onClose} role="dialog" aria-modal="true" aria-label={movie.title}>
+      <div className="nf-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="nf-sheet-top">
+          <Art movie={movie} />
+          <button className="nf-sheet-close" aria-label="Close" onClick={onClose}>
+            <X size={20} />
+          </button>
+          <div className="nf-sheet-head">
+            <h2>{movie.title}</h2>
+            {soon ? (
+              <span className="nf-btn soon">Coming soon</span>
+            ) : (
+              <button className="nf-btn primary" onClick={onPlay}>
+                <Play size={18} fill="currentColor" /> Play
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="nf-sheet-body">
+          <div>
+            {movie.subtitle && <p style={{ marginBottom: 12, color: '#fff', fontWeight: 600 }}>{movie.subtitle}</p>}
+            <p>{movie.description || 'More details soon.'}</p>
+          </div>
+          <dl className="nf-facts">
+            {facts
+              .filter(([, v]) => v)
+              .map(([k, v]) => (
+                <div key={k}>
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+          </dl>
+        </div>
+      </div>
+    </div>
+  );
+}
