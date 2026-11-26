@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Info, Play, Volume2, VolumeX, X } from 'lucide-react';
 import type { Movie } from '../lib/sample-films';
 import { catalog } from '../lib/catalog';
+import { youtubeId as ytId } from '../lib/films';
 import { youtubeId } from '../lib/films';
 import Intro from './Intro';
 import Smooth from './Smooth';
@@ -66,6 +67,31 @@ export default function Home() {
 
   return (
     <main className={`nf ${ready ? 'is-ready' : ''}`} id="top">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'ItemList',
+            itemListElement: list.map((m, i) => ({
+              '@type': 'ListItem',
+              position: i + 1,
+              item: {
+                '@type': 'Movie',
+                name: m.title,
+                description: m.description,
+                dateCreated: m.year,
+                director: { '@type': 'Person', name: m.director || 'Joy Karenate-Egbuson' },
+                image: m.image.startsWith('/') ? `https://films.thejoietv.com${m.image}` : m.image,
+                url: m.youtubeUrl && ytId(m.youtubeUrl) ? `https://www.youtube.com/watch?v=${ytId(m.youtubeUrl)}` : 'https://films.thejoietv.com/',
+              },
+            })),
+          }),
+        }}
+      />
+      <p className="sr-only">
+        Short films by Joy Karenate-Egbuson (also known as Joy Egbuson), from The Joie TV, also called Joie TV Productions.
+      </p>
       <Intro onDone={() => setReady(true)} />
       <Smooth paused={windowOpen} />
 
