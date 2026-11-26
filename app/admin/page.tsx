@@ -73,6 +73,19 @@ async function shrink(file: File): Promise<string> {
   return btoa(bin);
 }
 
+/**
+ * A picture for the list and the editor. A freshly uploaded thumbnail only exists on the live site
+ * once it has rebuilt (a minute or two), so until then it is loaded straight from GitHub instead.
+ */
+const RAW = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/public`;
+function Thumb({ src }: { src: string }) {
+  const [bad, setBad] = useState(false);
+  useEffect(() => setBad(false), [src]);
+  const shown = bad && src.startsWith('/') ? RAW + src : src;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={shown} alt="" onError={() => setBad(true)} />;
+}
+
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'film';
 
 export default function Admin() {
@@ -297,7 +310,7 @@ export default function Admin() {
             <li key={f.id} className={`adm-row ${f.published ? '' : 'is-hidden'}`}>
               <div className="adm-thumb">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {thumb ? <img src={thumb} alt="" /> : <span>No picture</span>}
+                {thumb ? <Thumb src={thumb} /> : <span>No picture</span>}
               </div>
               <div className="adm-info">
                 <strong>{f.title}</strong>
@@ -425,7 +438,7 @@ function Editor({
           <div className="wide adm-poster">
             <div className="adm-poster-pic">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              {shownPic ? <img src={shownPic} alt="" /> : <span>No thumbnail yet</span>}
+              {shownPic ? <Thumb src={shownPic} /> : <span>No thumbnail yet</span>}
             </div>
             <div>
               <span className="lbl">Thumbnail</span>
