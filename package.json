@@ -12,6 +12,7 @@
     "check:media": "wrangler deploy --config workers/wrangler.jsonc --dry-run"
   },
   "dependencies": {
+    "@studio-freight/lenis": "^1.0.42",
     "@supabase/supabase-js": "2.119.0",
     "lucide-react": "latest",
     "next": "latest",

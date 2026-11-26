@@ -116,14 +116,14 @@
 .nf-hero-shade {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 2;
   background:
     linear-gradient(90deg, rgb(0 0 0 / 0.88) 0%, rgb(0 0 0 / 0.45) 45%, transparent 75%),
     linear-gradient(0deg, #000 0%, transparent 38%);
 }
 .nf-hero-body {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   width: min(640px, 92%);
   padding: 140px clamp(16px, 4vw, 56px) clamp(56px, 8vw, 96px);
 }
@@ -548,7 +548,7 @@
   overflow: hidden;
 }
 .nf-intro.is-leaving {
-  animation: nf-intro-out 0.7s ease forwards;
+  animation: nf-intro-out 0.9s ease forwards;
 }
 @keyframes nf-intro-out {
   to {
@@ -560,17 +560,14 @@
   position: relative;
   width: min(62vw, 560px);
   aspect-ratio: 900 / 456;
-  animation: nf-zoom 3.1s cubic-bezier(0.55, 0, 0.9, 0.4) forwards;
+  animation: nf-settle 2.8s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
 }
-@keyframes nf-zoom {
-  0% {
-    transform: scale(0.82);
+@keyframes nf-settle {
+  from {
+    transform: scale(0.93);
   }
-  58% {
+  to {
     transform: scale(1);
-  }
-  100% {
-    transform: scale(14);
   }
 }
 .nf-intro-glow {
@@ -580,20 +577,17 @@
     radial-gradient(closest-side, rgb(255 122 0 / 0.55), transparent 70%),
     radial-gradient(closest-side at 70% 60%, rgb(198 36 155 / 0.4), transparent 70%);
   opacity: 0;
-  animation: nf-glow 3.1s ease forwards;
+  animation: nf-glow 2.8s ease forwards;
 }
 @keyframes nf-glow {
   0% {
     opacity: 0;
   }
-  35% {
+  45% {
     opacity: 0.9;
   }
-  60% {
-    opacity: 1;
-  }
   100% {
-    opacity: 0;
+    opacity: 0.35;
   }
 }
 /* The logo is a stencil: colour ribbons sweep through it, then it settles to white. */
@@ -615,17 +609,17 @@
   );
   background-size: 400% 100%;
   background-position: 0% 0;
-  animation: nf-ribbons 3.1s cubic-bezier(0.45, 0, 0.2, 1) forwards;
+  animation: nf-ribbons 2.8s cubic-bezier(0.45, 0, 0.2, 1) forwards;
 }
 @keyframes nf-ribbons {
   0% {
     background-position: 0% 0;
     opacity: 0;
   }
-  12% {
+  14% {
     opacity: 1;
   }
-  58% {
+  72% {
     background-position: 100% 0;
   }
   100% {
@@ -636,4 +630,157 @@
   .nf-intro {
     display: none;
   }
+}
+
+/* ---- Smoothness: entrances, fades, loading shimmer ---- */
+.nf-nav {
+  opacity: 0;
+  transition: opacity 0.9s ease 0.1s, background 0.35s ease;
+}
+.nf.is-ready .nf-nav {
+  opacity: 1;
+}
+.nf-in {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.9s var(--ease), transform 0.9s var(--ease);
+  transition-delay: var(--d, 0ms);
+}
+.nf.is-ready .nf-in {
+  opacity: 1;
+  transform: none;
+}
+.nf-row {
+  opacity: 0;
+  transform: translateY(34px);
+  transition: opacity 0.9s var(--ease), transform 0.9s var(--ease);
+}
+.nf-row.is-in {
+  opacity: 1;
+  transform: none;
+}
+.nf-row.is-in .nf-card {
+  animation: nf-card-in 0.8s var(--ease) backwards;
+  animation-delay: calc(var(--i, 0) * 80ms + 120ms);
+}
+@keyframes nf-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(22px) scale(0.96);
+  }
+}
+
+/* Pictures fade in when ready; until then the card pulses with three little bouncing dots. */
+.nf-pic {
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+.nf-pic.is-loaded {
+  opacity: 1;
+}
+.nf-card {
+  background: linear-gradient(120deg, #1a1a1a, #262626, #1a1a1a);
+  background-size: 200% 100%;
+  animation: nf-shimmer 1.6s linear infinite;
+}
+.nf-card:has(.is-loaded) {
+  animation: none;
+}
+.nf-row.is-in .nf-card:not(:has(.is-loaded)) {
+  animation: nf-card-in 0.8s var(--ease) backwards, nf-shimmer 1.6s linear infinite;
+  animation-delay: calc(var(--i, 0) * 80ms + 120ms), 0s;
+}
+@keyframes nf-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.nf-card::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--orange);
+  box-shadow: -18px 0 0 var(--pink), 18px 0 0 var(--yellow);
+  animation: nf-bounce 0.9s ease-in-out infinite;
+}
+.nf-card:has(.is-loaded)::before {
+  display: none;
+}
+@keyframes nf-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
+/* Hero video */
+.nf-hero-video {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+  pointer-events: none;
+  container-type: size;
+}
+.nf-hero-video.is-shown {
+  opacity: 1;
+}
+.nf-hero-video iframe {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(115cqw, 205cqh);
+  aspect-ratio: 16 / 9;
+  border: 0;
+  transform: translate(-50%, -50%);
+}
+.nf-sound {
+  position: absolute;
+  z-index: 4;
+  right: clamp(16px, 4vw, 56px);
+  bottom: clamp(60px, 9vw, 110px);
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid rgb(255 255 255 / 0.6);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.35);
+  color: #fff;
+  backdrop-filter: blur(6px);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.nf-sound:hover {
+  background: rgb(255 255 255 / 0.2);
+  transform: scale(1.08);
+}
+
+.nf-rating {
+  padding: 2px 8px;
+  border: 1px solid rgb(255 255 255 / 0.6);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+}
+.nf-sheet-head .nf-meta {
+  margin-bottom: 14px;
+}
+.nf-tags {
+  margin-top: 14px !important;
+  font-size: 13px !important;
+  color: #fff !important;
+}
+.nf-tags span {
+  color: rgb(255 255 255 / 0.5);
 }

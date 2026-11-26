@@ -11,6 +11,12 @@ export type Movie = {
   image: string;
   color: string;
   isNew?: boolean;
+  rating?: string;
+  writer?: string;
+  producer?: string;
+  language?: string;
+  tags?: string;
+  releaseDate?: string;
   youtubeUrl?: string;
   /** True when the image is a wide still (like a YouTube thumbnail) rather than a tall poster. */
   landscape?: boolean;

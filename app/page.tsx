@@ -1,73 +1,25 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Info, Play, X } from 'lucide-react';
-import { fallbackMovies, type Movie } from '../lib/sample-films';
-import { getPublicSupabase, isConfigured } from '../lib/supabase';
-import { type Film, youtubeId } from '../lib/films';
+import { ChevronLeft, ChevronRight, Info, Play, Volume2, VolumeX, X } from 'lucide-react';
+import type { Movie } from '../lib/sample-films';
+import { catalog } from '../lib/catalog';
+import { youtubeId } from '../lib/films';
 import Intro from './Intro';
+import Smooth from './Smooth';
 import './home.css';
 
 const MAIN_SITE = 'https://thejoietv.com';
 
-function toMovie(f: Film): Movie {
-  return {
-    id: f.id,
-    title: f.title,
-    subtitle: f.subtitle,
-    genre: f.genre,
-    year: String(f.release_year || ''),
-    length: f.runtime_minutes ? `${f.runtime_minutes} min` : '',
-    director: f.director,
-    cast: f.cast_names.join(' · '),
-    description: f.synopsis,
-    image: f.poster_url,
-    color: f.color,
-    isNew: f.is_new,
-    youtubeUrl: f.youtube_url,
-  };
-}
-
 const isSoon = (m: Movie) => !m.youtubeUrl || !youtubeId(m.youtubeUrl);
 
 export default function Home() {
-  const [movies, setMovies] = useState<Movie[]>([]);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'offline'>(isConfigured ? 'loading' : 'offline');
+  const list = catalog;
+  const [ready, setReady] = useState(false); // becomes true as the intro finishes
   const [scrolled, setScrolled] = useState(false);
   const [details, setDetails] = useState<Movie | null>(null);
   const [video, setVideo] = useState<string | null>(null);
   const player = useRef<HTMLDialogElement>(null);
-
-  // Load the published films, and refresh now and then so a new film appears without a reload.
-  useEffect(() => {
-    if (!isConfigured) return;
-    let active = true;
-    const db = getPublicSupabase();
-    async function refresh() {
-      try {
-        const { data, error } = await db
-          .from('films')
-          .select('*')
-          .eq('published', true)
-          .order('sort_order')
-          .order('id');
-        if (!active) return;
-        if (error) throw error;
-        setMovies((data as Film[]).map(toMovie));
-        setStatus('ready');
-      } catch {
-        if (active) setStatus((s) => (s === 'ready' ? s : 'offline'));
-      }
-    }
-    void refresh();
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') void refresh();
-    }, 60000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -86,14 +38,8 @@ export default function Home() {
       if (e.key === 'Escape' && !video) setDetails(null);
     };
     window.addEventListener('keydown', onKey);
-    document.body.style.overflow = details ? 'hidden' : '';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
-  }, [details, video]);
-
-  const list = status === 'offline' && !movies.length ? fallbackMovies : movies;
+    return () => window.removeEventListener('keydown', onKey);
+  }, [video]);
 
   // The hero is the newest film that is still "coming soon", else the newest marked New, else the first.
   const hero = useMemo(() => {
@@ -116,9 +62,12 @@ export default function Home() {
     if (id) setVideo(id);
   };
 
+  const windowOpen = !!details || !!video;
+
   return (
-    <main className="nf" id="top">
-      <Intro />
+    <main className={`nf ${ready ? 'is-ready' : ''}`} id="top">
+      <Intro onDone={() => setReady(true)} />
+      <Smooth paused={windowOpen} />
 
       <header className={`nf-nav ${scrolled ? 'is-solid' : ''}`}>
         <div className="nf-nav-left">
@@ -129,7 +78,6 @@ export default function Home() {
           <nav className="nf-links" aria-label="Main navigation">
             <a className="is-active" href="#top">Films</a>
             <a href={`${MAIN_SITE}/work`}>Works</a>
-            <a href={`${MAIN_SITE}/contact`}>Collaborate</a>
             <a href={`${MAIN_SITE}/contact`}>Contact</a>
           </nav>
         </div>
@@ -138,11 +86,17 @@ export default function Home() {
         </div>
       </header>
 
-      {hero && <Hero movie={hero} onPlay={() => play(hero)} onInfo={() => setDetails(hero)} />}
+      {hero && (
+        <Hero
+          movie={hero}
+          videoOn={ready && !windowOpen}
+          onPlay={() => play(hero)}
+          onInfo={() => setDetails(hero)}
+        />
+      )}
 
       <div className="nf-rows">
-        {status === 'loading' && !list.length && <p className="nf-empty">Loading films…</p>}
-        {status === 'ready' && !list.length && <p className="nf-empty">New stories are on their way.</p>}
+        {!list.length && <p className="nf-empty">New stories are on their way.</p>}
         {newRow.length > 0 && <Row title="New & Coming Soon" movies={newRow} onOpen={setDetails} />}
         {list.length > 0 && <Row title="All Films" movies={list} onOpen={setDetails} />}
         {genres.map(([genre, items]) => (
@@ -156,16 +110,13 @@ export default function Home() {
       </footer>
 
       {details && (
-        <Details
-          movie={details}
-          onClose={() => setDetails(null)}
-          onPlay={() => play(details)}
-        />
+        <Details movie={details} onClose={() => setDetails(null)} onPlay={() => play(details)} />
       )}
 
       <dialog
         className="nf-player"
         ref={player}
+        data-lenis-prevent
         aria-label="Film player"
         onCancel={(e) => {
           e.preventDefault();
@@ -195,50 +146,141 @@ export default function Home() {
   );
 }
 
-/** A film's picture. Wide stills fill the space; tall posters are shown whole over a blurred copy. */
-function Art({ movie, className }: { movie: Movie; className?: string }) {
+/** A picture that fades in once it has loaded, with a little colour shimmer while it waits. */
+function Pic({ src, className }: { src: string; className?: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const ref = useRef<HTMLImageElement>(null);
+  useEffect(() => {
+    if (ref.current?.complete && ref.current.naturalWidth) setLoaded(true);
+  }, [src]);
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      ref={ref}
+      src={src}
+      alt=""
+      draggable={false}
+      className={`${className ?? ''} nf-pic ${loaded ? 'is-loaded' : ''}`}
+      onLoad={() => setLoaded(true)}
+    />
+  );
+}
+
+/** A film's picture for the details window. Wide stills fill it; tall posters sit whole over a blurred copy. */
+function Art({ movie }: { movie: Movie }) {
   const [wide, setWide] = useState(!!movie.landscape);
   return (
     <>
       {!wide && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img className={`blur ${className ?? ''}`} src={movie.image} alt="" aria-hidden="true" />
+        <img className="blur" src={movie.image} alt="" aria-hidden="true" />
       )}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={movie.image}
         alt=""
-        className={wide ? className : `poster ${className ?? ''}`}
+        className={wide ? undefined : 'poster'}
         onLoad={(e) => setWide(e.currentTarget.naturalWidth > e.currentTarget.naturalHeight)}
       />
     </>
   );
 }
 
-function Hero({ movie, onPlay, onInfo }: { movie: Movie; onPlay: () => void; onInfo: () => void }) {
-  const soon = isSoon(movie);
-  const meta = [movie.year, movie.genre, movie.length].filter(Boolean);
+/** The hero film plays silently behind the text, with a button for sound. */
+function HeroVideo({ id }: { id: string }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [shown, setShown] = useState(false);
+  const [muted, setMuted] = useState(true);
+
+  const send = (func: string) =>
+    frame.current?.contentWindow?.postMessage(JSON.stringify({ event: 'command', func, args: [] }), '*');
+
   return (
-    <section className="nf-hero" aria-label="Featured film">
-      <div className="nf-hero-bg">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className={movie.landscape ? '' : 'blur'} src={movie.image} alt="" />
+    <>
+      <div className={`nf-hero-video ${shown ? 'is-shown' : ''}`} aria-hidden="true">
+        <iframe
+          ref={frame}
+          title=""
+          tabIndex={-1}
+          src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&controls=0&loop=1&playlist=${id}&playsinline=1&modestbranding=1&rel=0&disablekb=1&iv_load_policy=3&enablejsapi=1`}
+          allow="autoplay; encrypted-media"
+          // The player paints black until the video starts, so it only fades in a moment after loading.
+          onLoad={() => setTimeout(() => setShown(true), 1800)}
+        />
       </div>
+      {shown && (
+        <button
+          className="nf-sound"
+          aria-label={muted ? 'Turn sound on' : 'Turn sound off'}
+          onClick={() => {
+            send(muted ? 'unMute' : 'mute');
+            if (muted) send('setVolume');
+            setMuted(!muted);
+          }}
+        >
+          {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+        </button>
+      )}
+    </>
+  );
+}
+
+function Hero({
+  movie,
+  videoOn,
+  onPlay,
+  onInfo,
+}: {
+  movie: Movie;
+  videoOn: boolean;
+  onPlay: () => void;
+  onInfo: () => void;
+}) {
+  const soon = isSoon(movie);
+  const meta = [movie.year, movie.length, movie.genre].filter(Boolean);
+  const id = movie.youtubeUrl ? youtubeId(movie.youtubeUrl) : null;
+  const section = useRef<HTMLElement>(null);
+  const [inView, setInView] = useState(true);
+
+  // Only play while the hero is on screen.
+  useEffect(() => {
+    const el = section.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0.2 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <section className="nf-hero" aria-label="Featured film" ref={section}>
+      <div className="nf-hero-bg">
+        <Pic src={movie.image} className={movie.landscape ? '' : 'blur'} />
+      </div>
+      {id && videoOn && inView && <HeroVideo id={id} />}
       {!movie.landscape && (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="nf-hero-poster" src={movie.image} alt={`${movie.title} poster`} />
       )}
       <div className="nf-hero-shade" />
       <div className="nf-hero-body">
-        <span className={`nf-tag ${soon ? 'is-pink' : ''}`}>{soon ? 'Coming soon' : movie.isNew ? 'New' : 'Featured'}</span>
-        <h1 className="nf-title">{movie.title}</h1>
-        <div className="nf-meta">
+        <span className={`nf-tag nf-in ${soon ? 'is-pink' : ''}`} style={{ ['--d' as string]: '0ms' }}>
+          {soon ? (movie.releaseDate ? `Coming ${movie.releaseDate}` : 'Coming soon') : movie.isNew ? 'New' : 'Featured'}
+        </span>
+        <h1 className="nf-title nf-in" style={{ ['--d' as string]: '90ms' }}>
+          {movie.title}
+        </h1>
+        <div className="nf-meta nf-in" style={{ ['--d' as string]: '180ms' }}>
+          {movie.rating && <span className="nf-rating">{movie.rating}</span>}
           {meta.map((m, i) => (
             <span key={i}>{m}</span>
           ))}
         </div>
-        {movie.description && <p className="nf-synopsis">{movie.description}</p>}
-        <div className="nf-actions">
+        {movie.description && (
+          <p className="nf-synopsis nf-in" style={{ ['--d' as string]: '260ms' }}>
+            {movie.description}
+          </p>
+        )}
+        <div className="nf-actions nf-in" style={{ ['--d' as string]: '340ms' }}>
           {soon ? (
             <span className="nf-btn soon">Coming soon</span>
           ) : (
@@ -256,25 +298,45 @@ function Hero({ movie, onPlay, onInfo }: { movie: Movie; onPlay: () => void; onI
 }
 
 function Row({ title, movies, onOpen }: { title: string; movies: Movie[]; onOpen: (m: Movie) => void }) {
+  const section = useRef<HTMLElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+
+  // Slides up softly when it scrolls into view.
+  useEffect(() => {
+    const el = section.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          el.classList.add('is-in');
+          io.disconnect();
+        }
+      },
+      { threshold: 0.12 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   const move = (dir: number) =>
     scroller.current?.scrollBy({ left: dir * scroller.current.clientWidth * 0.8, behavior: 'smooth' });
+
   return (
-    <section className="nf-row" aria-label={title}>
+    <section className="nf-row" aria-label={title} ref={section}>
       <h2>{title}</h2>
       <button className="nf-arrow left" aria-label={`${title}: scroll left`} onClick={() => move(-1)}>
         <ChevronLeft />
       </button>
-      <div className="nf-scroller" ref={scroller}>
-        {movies.map((m) => (
+      <div className="nf-scroller" ref={scroller} data-lenis-prevent-wheel>
+        {movies.map((m, i) => (
           <button
             key={`${title}-${m.id}`}
             className={`nf-card ${m.landscape ? 'wide' : ''}`}
+            style={{ ['--i' as string]: i }}
             onClick={() => onOpen(m)}
             aria-label={`${m.title}${isSoon(m) ? ', coming soon' : ''}`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={m.image} alt="" draggable={false} loading="lazy" />
+            <Pic src={m.image} />
             {isSoon(m) ? (
               <span className="nf-badge is-pink">Soon</span>
             ) : (
@@ -299,11 +361,22 @@ function Details({ movie, onClose, onPlay }: { movie: Movie; onClose: () => void
   const facts: [string, string][] = [
     ['Director', movie.director],
     ['Cast', movie.cast],
+    ['Writer', movie.writer ?? ''],
+    ['Producer', movie.producer ?? ''],
     ['Genre', movie.genre],
+    ['Language', movie.language ?? ''],
     ['Year', [movie.year, movie.length].filter(Boolean).join(' · ')],
+    ['Release', soon ? movie.releaseDate ?? '' : ''],
   ];
   return (
-    <div className="nf-modal" onClick={onClose} role="dialog" aria-modal="true" aria-label={movie.title}>
+    <div
+      className="nf-modal"
+      data-lenis-prevent
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={movie.title}
+    >
       <div className="nf-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="nf-sheet-top">
           <Art movie={movie} />
@@ -312,6 +385,12 @@ function Details({ movie, onClose, onPlay }: { movie: Movie; onClose: () => void
           </button>
           <div className="nf-sheet-head">
             <h2>{movie.title}</h2>
+            <div className="nf-meta">
+              {movie.rating && <span className="nf-rating">{movie.rating}</span>}
+              {[movie.year, movie.length, movie.genre].filter(Boolean).map((x, i) => (
+                <span key={i}>{x}</span>
+              ))}
+            </div>
             {soon ? (
               <span className="nf-btn soon">Coming soon</span>
             ) : (
@@ -325,6 +404,11 @@ function Details({ movie, onClose, onPlay }: { movie: Movie; onClose: () => void
           <div>
             {movie.subtitle && <p style={{ marginBottom: 12, color: '#fff', fontWeight: 600 }}>{movie.subtitle}</p>}
             <p>{movie.description || 'More details soon.'}</p>
+            {movie.tags && (
+              <p className="nf-tags">
+                <span>This film is:</span> {movie.tags}
+              </p>
+            )}
           </div>
           <dl className="nf-facts">
             {facts

@@ -1,0 +1,62 @@
+[
+  {
+    "id": 1,
+    "title": "Wake Up, Eat, Sleep, Repeat",
+    "subtitle": "The routine, the fatigue, the small moments that keep us going.",
+    "genre": "Drama",
+    "year": "2024",
+    "length": "",
+    "director": "Joy Karenate-Egbuson",
+    "cast": "",
+    "description": "A short film for anyone who has ever felt stuck in the daily cycle but still finds a way to keep moving forward. Watch, reflect, and maybe break the cycle.",
+    "poster": "",
+    "youtubeUrl": "https://www.youtube.com/watch?v=QxYfDjL8zcI",
+    "isNew": false,
+    "published": true
+  },
+  {
+    "id": 2,
+    "title": "Resonance",
+    "subtitle": "How the past, present and future connect.",
+    "genre": "Drama",
+    "year": "2024",
+    "length": "",
+    "director": "Joy Karenate-Egbuson",
+    "cast": "",
+    "description": "Resonance is about the ripples people leave behind and the way certain memories never really fade. It is a meditation on time: the things we carry, and the things we pass on.",
+    "poster": "",
+    "youtubeUrl": "https://www.youtube.com/watch?v=TbVFPjYVFY0",
+    "isNew": false,
+    "published": true
+  },
+  {
+    "id": 3,
+    "title": "I Love You",
+    "subtitle": "Messy, complicated, and beautiful.",
+    "genre": "Romance",
+    "year": "2024",
+    "length": "",
+    "director": "Joy Karenate-Egbuson",
+    "cast": "",
+    "description": "I Love You is a short film that sits inside the mess and the beauty of loving someone. Whether you've been in love, lost it, or are still searching, this story will relate in more ways than one.",
+    "poster": "",
+    "youtubeUrl": "https://www.youtube.com/watch?v=dDHvTvbNeW4",
+    "isNew": false,
+    "published": true
+  },
+  {
+    "id": 4,
+    "title": "Knock Knock",
+    "subtitle": "The dangers of being in the dorm room alone.",
+    "genre": "Horror",
+    "year": "2023",
+    "length": "",
+    "director": "Joy Karenate-Egbuson",
+    "cast": "",
+    "description": "Knock Knock is a tight, atmospheric horror short built on a very ordinary fear: being alone in a space that suddenly isn't yours anymore.",
+    "poster": "",
+    "youtubeUrl": "https://www.youtube.com/watch?v=3edRZ78dIuI",
+    "isNew": false,
+    "published": true
+  }
+]
