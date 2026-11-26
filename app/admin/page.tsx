@@ -88,7 +88,7 @@ function Thumb({ src }: { src: string }) {
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'film';
 
-export default function Admin() {
+function Manager() {
   const [token, setToken] = useState('');
   const [tokenInput, setTokenInput] = useState('');
   const [films, setFilms] = useState<StoredFilm[]>([]);
@@ -560,5 +560,73 @@ function Editor({
         </p>
       </form>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  A simple password in front of the page, so nobody stumbles onto it  */
+/* ------------------------------------------------------------------ */
+// Only a scrambled (hashed) copy of the password is kept here. This stops visitors wandering in, but it
+// is not strong security on its own: the real lock is the GitHub token, which is needed to save anything.
+const PASSWORD_HASH = '5356cea14aafaccf789ae3e01ac1d01ab29878193beeca76bbac5917a5d43e66';
+const UNLOCK_KEY = 'jtvf-admin-unlocked';
+
+async function hash(text: string) {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`jtvf-admin:${text}`));
+  return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export default function Admin() {
+  const [state, setState] = useState<'checking' | 'locked' | 'open'>('checking');
+  const [value, setValue] = useState('');
+  const [wrong, setWrong] = useState(false);
+
+  useEffect(() => {
+    let ok = false;
+    try {
+      ok = sessionStorage.getItem(UNLOCK_KEY) === '1';
+    } catch {}
+    setState(ok ? 'open' : 'locked');
+  }, []);
+
+  async function unlock(e: React.FormEvent) {
+    e.preventDefault();
+    if ((await hash(value.trim())) === PASSWORD_HASH) {
+      try {
+        sessionStorage.setItem(UNLOCK_KEY, '1');
+      } catch {}
+      setState('open');
+    } else {
+      setWrong(true);
+    }
+  }
+
+  if (state === 'checking') return <main className="adm" />;
+  if (state === 'open') return <Manager />;
+  return (
+    <main className="adm">
+      <form className="adm-card adm-login" onSubmit={unlock}>
+        <h1>Films manager</h1>
+        <p>Enter the password to continue.</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, margin: '18px 0 6px' }}>
+          <input
+            type="password"
+            placeholder="Password"
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setWrong(false);
+            }}
+            autoComplete="off"
+            autoFocus
+            style={{ flex: '1 1 220px' }}
+          />
+          <button className="adm-btn primary" type="submit" disabled={!value.trim()}>
+            Continue
+          </button>
+        </div>
+        {wrong && <p className="adm-note error">That password isn&rsquo;t right. Try again.</p>}
+      </form>
+    </main>
   );
 }
