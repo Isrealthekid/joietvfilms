@@ -146,23 +146,51 @@ export default function Home() {
   );
 }
 
-/** A picture that fades in once it has loaded, with a little colour shimmer while it waits. */
-function Pic({ src, className }: { src: string; className?: string }) {
+/**
+ * A picture that fades in once it has loaded, with a little colour shimmer while it waits. If it is
+ * tall or square it sits whole over a blurred copy of itself, so every card keeps the same shape.
+ */
+function Pic({
+  src,
+  className,
+  fit = true,
+  onShape,
+}: {
+  src: string;
+  className?: string;
+  fit?: boolean;
+  onShape?: (wide: boolean) => void;
+}) {
   const [loaded, setLoaded] = useState(false);
+  const [tall, setTall] = useState(false);
   const ref = useRef<HTMLImageElement>(null);
+  const seen = (img: HTMLImageElement) => {
+    const wide = img.naturalWidth >= img.naturalHeight * 1.2;
+    setTall(!wide);
+    setLoaded(true);
+    onShape?.(wide);
+  };
   useEffect(() => {
-    if (ref.current?.complete && ref.current.naturalWidth) setLoaded(true);
+    const img = ref.current;
+    if (img?.complete && img.naturalWidth) seen(img);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      ref={ref}
-      src={src}
-      alt=""
-      draggable={false}
-      className={`${className ?? ''} nf-pic ${loaded ? 'is-loaded' : ''}`}
-      onLoad={() => setLoaded(true)}
-    />
+    <>
+      {fit && tall && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="nf-pic is-loaded blur-bg" src={src} alt="" aria-hidden="true" draggable={false} />
+      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        ref={ref}
+        src={src}
+        alt=""
+        draggable={false}
+        className={`${className ?? ''} nf-pic ${loaded ? 'is-loaded' : ''} ${fit && tall ? 'contain' : ''}`}
+        onLoad={(e) => seen(e.currentTarget)}
+      />
+    </>
   );
 }
 
@@ -241,6 +269,7 @@ function Hero({
   const id = movie.youtubeUrl ? youtubeId(movie.youtubeUrl) : null;
   const section = useRef<HTMLElement>(null);
   const [inView, setInView] = useState(true);
+  const [wide, setWide] = useState(true);
 
   // Only play while the hero is on screen.
   useEffect(() => {
@@ -254,10 +283,10 @@ function Hero({
   return (
     <section className="nf-hero" aria-label="Featured film" ref={section}>
       <div className="nf-hero-bg">
-        <Pic src={movie.image} className={movie.landscape ? '' : 'blur'} />
+        <Pic src={movie.image} className={wide ? '' : 'blur'} fit={false} onShape={setWide} />
       </div>
       {id && videoOn && inView && <HeroVideo id={id} />}
-      {!movie.landscape && (
+      {!wide && (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="nf-hero-poster" src={movie.image} alt={`${movie.title} poster`} />
       )}
@@ -331,7 +360,7 @@ function Row({ title, movies, onOpen }: { title: string; movies: Movie[]; onOpen
         {movies.map((m, i) => (
           <button
             key={`${title}-${m.id}`}
-            className={`nf-card ${m.landscape ? 'wide' : ''}`}
+            className="nf-card wide"
             style={{ ['--i' as string]: i }}
             onClick={() => onOpen(m)}
             aria-label={`${m.title}${isSoon(m) ? ', coming soon' : ''}`}

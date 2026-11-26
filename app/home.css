@@ -234,6 +234,7 @@
 }
 .nf-scroller {
   display: flex;
+  align-items: flex-start;
   gap: 10px;
   overflow-x: auto;
   scroll-snap-type: x proximity;
@@ -783,4 +784,14 @@
 }
 .nf-tags span {
   color: rgb(255 255 255 / 0.5);
+}
+
+/* Tall pictures sit whole inside the same card shape, over a blurred copy of themselves. */
+.nf-card img.contain {
+  object-fit: contain;
+}
+.nf-card img.blur-bg {
+  object-fit: cover;
+  filter: blur(22px) brightness(0.55);
+  transform: scale(1.25);
 }
